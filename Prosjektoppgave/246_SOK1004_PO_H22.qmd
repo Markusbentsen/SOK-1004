@@ -1,0 +1,510 @@
+---
+title: SOK-1004, høst 2022, Prosjektoppgave
+author: Kandidatnummer 18 & 246
+format: pdf
+echo: true
+output: true
+editor: visual
+---
+
+# Oppgave 1
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+rm(list=ls()) 
+library(tidyverse)
+library(ggthemes)
+library(openxlsx)
+library(ggpubr)
+
+url <- "https://modals.li/downloads/gini_series_norway.xlsx"
+
+df_gini <- url %>%  
+  read.xlsx(sheet=1) %>% 
+  as_tibble()
+
+df_gini_navn <- df_gini %>% 
+  names()
+
+df_gini<- df_gini %>%
+  pivot_longer(!year,
+               names_to = "var", 
+               values_to = "verdi")
+
+url <- "https://github.com/uit-sok-1004-h22/uit-sok-1004-h22.github.io/blob/main/rkode/inntektsandeler.xlsx?raw=true"
+  
+df_andeler <- url %>%  
+  read.xlsx() %>% 
+  as_tibble()  
+
+df_andeler_navn <- df_gini %>% 
+  names()
+
+df_andeler <- df_andeler %>%
+  pivot_longer(!year,
+               names_to = "var", 
+               values_to = "verdi")
+
+df_andeler <- df_andeler %>% 
+  filter(year>=1875)
+
+url <- "https://github.com/uit-sok-1004-h22/uit-sok-1004-h22.github.io/blob/e36b270c865e077f797e9426e32b47740f2f3847/rkode/bnp.xlsx?raw=true"
+
+df_bnp <- url %>%  
+  read.xlsx(sheet=1) %>% 
+  as_tibble()
+
+navn_BNP <- df_bnp %>% 
+  names()
+
+df_bnp <- df_bnp %>% 
+  rename(BNP = navn_BNP[2],
+         year = navn_BNP[1])
+
+df_bnp <- df_bnp %>% 
+  mutate(DLBNP = 100*(log(BNP)-lag(log(BNP))))
+
+df_bnp <- df_bnp %>% 
+  filter(year >= 1875)
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+df_gini %>%
+  filter(year >= 1875) %>%
+  filter(var %in% df_gini_navn[4]) %>%
+  ggplot(aes(x=year,y=verdi)) +
+  geom_line() +
+  geom_smooth() +
+  ylim(0.25,0.75) +
+  theme_bw() +
+  labs(title = "Figur 1: Gini-koeffisienter for inntektsfordelingen i Norge",
+       subtitle = "1875–2017. Gjennomsnitt av øvre og nedre grense.",
+       y="Gini-koeffisient",
+       x="År",
+       caption = "Kilde: Modalsli, Aaberge og Atkinson (2021)")
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+df_bnp %>%
+filter(year >= 1875) %>%
+mutate(BNP = log(BNP)) %>% 
+ggplot(aes(x=year,y=BNP)) +
+geom_line() +
+geom_smooth() +
+theme_bw() +
+labs(title = "Figur 2: BNP per person",
+     subtitle = "Log faste-2005 kroner. 1875-2017.",
+     y="BNP per person",
+     x="År",
+     caption = "Kilde: Norges Bank")
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+df_bnp %>%
+filter(year >= 1875 ) %>%
+ggplot(aes(x=year,y=DLBNP)) +
+geom_line() +
+geom_smooth() +
+theme_bw() +
+labs(title = "Figur 3: BNP per person",
+     subtitle = "Årlig endring. Log faste-2005 kroner. 1875-2017",
+     y="BNP per person",
+     x="År",
+     caption = "Kilde: Norges Bank")
+```
+
+I 1920-årene var ulikheten langt høyere iforhold til dagens nivå. I figur 1 ser vi at gini-koeffisienten for perioden varierer mellom 0.54 - 0.58. Videre ser vi i figur 1 at ulikheten var gjennomsnittlig langt høyere under første verdenskrig og mellomkrigstiden enn perioden etter andre verdenskrig. Vi ser også enkelte topper i ulikheten grunnet ulike hendelser, for eksempel under første verdenskrig (rett før vår periode.), samt finanskrisen i 2008.
+
+Ser vi på BNP per person (både verdien på figur 2 og årlig endring på figur 3), ser vi vi at veksten er ulik fra år til år, selv om vi gjennomsnittlig får en økning i BNP. Enkelte år er veksten relativt liten, og blant annet i 1921 negativ. Det vil si at i forhold til året før, falt BNP per innbygger. Vi ser også på figur 3 at den årlige endringen varierer mye i perioden fra starten av første verdenskrig til slutten av andre verdenskrig. Både før første og etter andre verdenskrig, ser vi en jevnere årlig utvikling i BNP per innbygger.
+
+# Oppgave 2
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+# ny tabell hvor vi skal beregne inntekter
+df <- df_andeler 
+
+# lagrer en liste med årene hvor vi har observasjoner med inntektsandeler
+years_list <- df$year %>% 
+  unique()
+
+# wide-format er enklere
+df <- df %>% 
+  pivot_wider(names_from = var, values_from = verdi) 
+
+# ny tabell med bnp-tall for årene hvor vi har observasjoner
+df_temp <- df_bnp %>% 
+  filter(year %in% years_list)
+
+# anstendige navn
+df <- df %>%
+  rename("0-10" = "share_0_10",
+         "10-20" = "share_10_20",
+         "20-30" = "share_20_30",
+         "30-40" = "share_30_40",
+         "40-50" = "share_40_50",
+         "50-60" = "share_50_60",
+         "60-70" = "share_60_70",
+         "70-80" = "share_70_80",
+         "80-90" = "share_80_90",
+         "90-100" = "share_90_100",
+         "90-99" = "share_90_99",
+         "99-100" = "share_99_100")
+
+# lagrer navn
+df_navn <- df %>% 
+  names()
+
+df <- df %>% 
+  mutate(`0-10`=10*`0-10`*df_temp$BNP,
+         `10-20`  = (100/10)*`10-20`*df_temp$BNP,
+         `20-30`  = (100/10)*`20-30`*df_temp$BNP,
+         `30-40`  = (100/10)*`30-40`*df_temp$BNP,
+         `40-50`  = (100/10)*`40-50`*df_temp$BNP,
+         `50-60`  = (100/10)*`50-60`*df_temp$BNP,
+         `60-70`  = (100/10)*`60-70`*df_temp$BNP,
+         `70-80`  = (100/10)*`70-80`*df_temp$BNP,
+         `80-90`  = (100/10)*`80-90`*df_temp$BNP,
+         `90-100` = (100/10)*`90-100`*df_temp$BNP,
+         `90-99`  = (100/9)*`90-99`*df_temp$BNP,
+         `99-100` = (100/1)*`99-100`*df_temp$BNP,)
+
+df <- df %>%
+  pivot_longer(!year,
+               names_to = "var", 
+               values_to = "verdi")
+
+andeler <- df$var %>% 
+  unique()
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+df %>% 
+  filter(year %in% c(1900:1930)) %>% 
+  filter(var %in% andeler[1:10]) %>% 
+  mutate(verdi=verdi/(10^5)) %>%
+  ggplot(aes(x=year,y=verdi,color=var)) +
+  geom_line(size=1.25) +
+  labs(title = "Figur 4: BNP per person",
+       subtitle = "Hundretusener faste 2005-kroner. Fordelt på inntektsdesiler. 1900-1950",
+       y = "BNP per person",
+       x = "År",
+       color = "Desil",
+       caption = "Kilder: Modalsli, Aaberge og Atkinson (2021), Norges Bank") +
+theme_bw() 
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+df %>% 
+  filter(year %in% c(1900:1930)) %>% 
+  mutate(verdi=log(verdi)) %>% 
+  filter(var %in% andeler[1:10]) %>% 
+  
+  ggplot(aes(x=year,
+             y=verdi,
+             color=var)) +
+  
+  geom_line(size=1.25) +
+  
+  labs(title = "Figur 5: Log BNP per person", 
+       subtitle = "Faste 2005-kroner. Fordelt på inntektsdesiler. 1900 - 1930",
+       y = "Log BNP per person",
+       x = "År",
+       color =  "Desil",
+       caption = "Kilder: Modalsli, Aaberge og Atkinson (2021), Norges Bank") +
+theme_bw() 
+```
+
+På figur 4 ser vi inntektene til de ulike desilene. For å lettere se forskjeller mellom de lavere desilene, ser vi på figur 5 i logaritmisk skala. I perioden fra 1920 til 1930 ser vi en gjennomsnittlig økning i BNP per person. Dette gjelder i de fleste desilene, med unntak av 60-70 og 70-80. Vi har også en til fellesfaktor, nemlig at BNP falt for store deler av befolkningen fra 1920 til 1921, bortsett fra de to laveste inntektsgruppene. Videre kan vi se på figur 4 at helningen til inntekten er høyest i de to øverste desilene, som tyder på at inntekten økte mest hos de rikeste.
+
+I de fleste inntektsgruppene ser vi en gjennomsnittlig økning fra 1920 til 1930 i BNP per innbygger, for utenom unntaket nevnt tidligere, selv i en periode med høy arbeidsledighet, innstrammet kredittpolitikk og tvangsauksjoner (Tvedt, 2022)
+
+# Oppgave 3
+
+For andre land ble 1920-tallet omtalt som «de glade 20-årene». I Norge ble 1920-tallet «det tapte tiåret». Hva gikk galt i Norge? Preget av pengepolitikk, arbeidsløshet, bankkriser, høye renter, tvangssalg, streiker og arbeidskriser ble Norge hardt rammet etter første verdenskrig. Vi skal nå se litt nærmere på hvorfor mellomkrigstiden var så brutal for Norge. I oppgaven tar vi for oss i hovedsak realrente og arbeidsledigheten, men kommer også inn på noen av de andre årsakene.
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+#rydder opp fra tidligere
+rm(list=ls()) 
+
+#pakker
+library(tidyverse) #datamanioulering og ggplot
+library(ggthemes) #tema ggplot
+library(openxlsx) #lese exceldokment
+library(ggpubr) #ggplot ekstra
+library(janitor) #pakke for å hjelpe med dataset
+library(httr) #pakke til innlasting av api data fra ssb
+library(rjstat) #pakke til lesing av json
+
+#lenke til data norges bank (real rente data)
+url_rr <- "https://www.norges-bank.no/globalassets/upload/hms/data/shortterm_ir.xlsx"
+#(Eitrheim, 2007)
+
+#lenke til data ssb (sysselsatte)
+url_ss <- "https://data.ssb.no/api/v0/no/table/10260/"
+#(Statistisk sentralbyrå, 2013)
+
+#lenke til data ssb (befolkning)
+url_bf <- "https://data.ssb.no/api/v0/no/table/05810/"
+#(Statistisk sentralbyrå, 2022)
+```
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+#Kodeblokken inneholder bare query og hent_indeks.
+#query sysselsatte
+query_ss <- ' {
+  "query": [
+    {
+      "code": "NACE",
+      "selection": {
+        "filter": "item",
+        "values": [
+          "HNRTOT"
+        ]
+      }
+    },
+    {
+      "code": "Tid",
+      "selection": {
+        "filter": "item",
+        "values": [
+          "1918",
+          "1919",
+          "1920",
+          "1921",
+          "1922",
+          "1923",
+          "1924",
+          "1925",
+          "1926",
+          "1927",
+          "1928",
+          "1929",
+          "1930"
+        ]
+      }
+    }
+  ],
+  "response": {
+    "format": "json-stat2"
+  }
+} '
+
+#hente ønsker data utifra spørring sysselsatte
+hent_indeks_ss.tmp <- url_ss %>%
+  POST(body = query_ss, encode = "json")
+
+#query befolkning
+query_bf <- ' {
+  "query": [
+    {
+      "code": "Kjonn",
+      "selection": {
+        "filter": "item",
+        "values": [
+          "0"
+        ]
+      }
+    },
+    {
+      "code": "Alder",
+      "selection": {
+        "filter": "item",
+        "values": [
+          "999B"
+        ]
+      }
+    },
+    {
+      "code": "Tid",
+      "selection": {
+        "filter": "item",
+        "values": [
+          "1915",
+          "1920",
+          "1925",
+          "1930"
+        ]
+      }
+    }
+  ],
+  "response": {
+    "format": "json-stat2"
+  }
+}'
+
+#hente ønsker data utifra spørring befolkning
+hent_indeks_bf.tmp <- url_bf %>%
+  POST(body = query_bf, encode = "json")
+```
+
+#### Paripolitikk og realrente
+
+Pengepolitikken på 1920 tallet ble kalt paripolitikk, hvor hovedprinsippet var å gjenopprette pari kurs, en fast pris for gull i egen valuta som var etablert før første verdenskrig. Dette ble utført ved å redusere mengden penger i omløp, som videre førte til deflasjon. (Det motsatte av inflasjon, altså at prisene sank.) (Thomassen, 2020).
+
+Figuren nedenfor (figur 6) viser inflasjonen i Norge, som viser at prisene sank nesten hele perioden, unntaket er årene 1924 og 1925.
+
+```{r}
+df_rr <- url_rr %>%   #laster inn data
+  read.xlsx(sheet=12) %>% #leser ark 12 fra exceldokumentet
+  as_tibble() #som tibble
+
+df_rr <- df_rr[-c(1:12),] #fjerner 12 første rader med tekst.
+df_rr <- df_rr %>%
+  row_to_names(row_number = 1) #janitor pakke: setter første rad som kolonnenavn
+
+df_rr <- df_rr %>% mutate_all(na_if,"") #setter tomme kollonner som n/a.
+
+colnames(df_rr)[1] = "year" #endrer kolonnenavn
+colnames(df_rr)[2] = "real_marginal_rate" #endrer kolonnenavn
+colnames(df_rr)[6] = "inflation_rate" #endrer kolonnenavn
+
+df_rr <- df_rr %>% # ny variabel når inflation er over null (til bruk i plot)
+  mutate(pos_inflation = inflation_rate >= 0)
+
+df_rr %>%
+  filter(year >= 1919 & year <= 1930) %>% #fjerner før 1919 og etter 1930
+  ggplot(aes(x=factor(year) ,y=as.numeric(inflation_rate), fill=pos_inflation)) + #aes
+  geom_bar(stat = "identity") + #hist
+  labs(title = "Figur 6: Inflasjon i Norge 1919 - 1930",
+       subtitle = "Inflasjon i prosent",
+       y = "Inflasjon (%)",
+       x = "År",
+       caption = "Kilde: Eitrheim, 2007") + #tittler på figur, akse, osv) 
+  theme_bw() + #tema
+  theme(legend.position="none") #fjerner legende
+```
+
+Pengepolitikken som ble praktisert på 1920-tallet har i senere tid blitt kritisert, og flere økonomiske historikere er enige om at pengepolitikk med formål å bevare eller forsterke valuta, heller gjorde den økonomiske situasjonen på 1920-tallet verre. (Thomassen, 2020).
+
+Selv om perioden beregnes som økonomisk ustabil, opplever Norge en økonomisk vekst. Vi så på figur 4 og 5 fra oppgave to at BNP per person øker for de fleste i Norge. Ser vi på figur 7 nedenfor, ser vi en økning i realrenten (kjøpekraft). Fra og med 1921 opplever vi en økning i kjøpekraft for konsumentene. Realrenten regnes ut fra den årlige renten minus inflasjon. Inflasjonen vil være negativ store deler av perioden, grunnet lavere priser, og vil dermed bidra til å øke kjøpekraften til norske husholdninger.
+
+```{r}
+#samme datasett som forrige kodeblokk
+df_rr %>% #plot
+  filter(year >= 1919 & year <= 1930) %>% #fjerner før 1919 og etter 1930
+  ggplot(aes(x=year ,y=as.numeric(real_marginal_rate))) + #aes
+  geom_line(group = 1, color="black") + #lineplot
+  geom_point(group = 1, color="blue") + #scatter
+  labs(title = "Figur 7: Realrente i Norge 1919 - 1930",
+       subtitle = "Realrente i prosent (nominell rente - inflasjon)",
+       y = "Realrente (%)",
+       x = "År",
+       caption = "Kilde: Eitrheim, 2007") + #tittler på figur, akse, osv) 
+  geom_hline(yintercept = 0, linetype = "dashed", color = "#89cff0") + #hline
+  theme_bw() #tema
+```
+
+Figur 7 viser realrenten i Norge fra 1919 til 1930, og fra 1922 ser vi en positiv realrente. Dette vil si at husholdningene i Norge opplevde en økning i kjøpekraft fra 1922 til 1930. Vi kan også se at realrenten stiger betraktelig mindre etter 1924 i forhold til tidligere. I 1930 ser vi også et fall i realrenten, som vil si at økningen i kjøpekraft var mindre i forhold til året før.
+
+Til tross for en vekst i BNP og husholdningenes kjøpekraft, er perioden beregnet som en ustabil økonomisk periode. Dette grunnet produksjonsinnskrenkninger, lavere omsetning og at arbeidsledigheten økte betraktelig. Vi skal se litt mer på arbeidsledighet på 1920-tallet. (Tvedt, 2022)
+
+#### Arbeidsledighet
+
+```{r}
+befolkning <-  hent_indeks_bf.tmp %>%
+  content("text") %>%
+  fromJSONstat() %>%
+  as_tibble()
+
+#Plotter grafen
+befolkning %>%
+  ggplot(aes(x = as.integer(år), y = value)) +
+  geom_line(aes(group = 1)) +
+  geom_point() +
+  scale_x_continuous(limits = c(1915, 1930)) +
+  labs(title = "Figur 8: Befolkning i Norge 1915-1930",
+       subtitle = "Befolkning i Norge i perioden 1915 til 1930",
+       y = "Befolkning",
+       x = "År",
+       caption = "Kilde: Statistisk sentralbyrå, 2022") +
+  theme_bw()
+```
+
+```{r}
+#lager dataframe
+sysselsatte <-  hent_indeks_ss.tmp %>%
+  content("text") %>%
+  fromJSONstat() %>%
+  as_tibble()
+
+sysselsatte <- sysselsatte %>% #lager årlig prosentvis endring 
+  mutate(årlig_endring_prosent = 100*((value-lag(value, n=1L))/lag(value, n=1L)))
+
+sysselsatte <- sysselsatte %>% # ny variabel når årlig endring er over null (til bruk i plot)
+  mutate(årlig_endring_prosent_pos = årlig_endring_prosent >= 0)
+
+sysselsatte %>% #plot
+  filter(år >= 1919) %>% #fjerner 1918
+  ggplot(aes(x=factor(år) ,y=as.numeric(årlig_endring_prosent), fill=årlig_endring_prosent_pos)) + #aes
+  geom_bar(stat = "identity") + #hist
+  labs(title = "Figur 9: Prosentvis årlig endring i antall sysselsatte",
+       subtitle = "Prosentvis årlig endring i antall sysselsatte i alle næringer",
+       y = "Årlig endring (prosent)",
+       x = "År",
+       caption = "Kilde: Statistisk sentralbyrå, 2013") + #tittler på figur, akse, osv)
+  theme_bw() + #tema 
+  theme(legend.position="none") #fjerner legende
+```
+
+Etter flere år med god økonomisk vekst, utbygging av fossefall og kraftproduksjon og den nye industrien som skapte en stor arbeiderklasse, var høykonjunkturen over høsten 1920. (SSB 2005). Perioden etter første verdenskrig var en periode med økonomisk og politisk turbulens. Prisene falt, produksjonsinnskrenkinger, mindre omsetninger og stor arbeidsløshet var et faktum, og dermed var mellomkrigstiden i gang. (Tvedt, 2020).
+
+Vanskelighetene som begynte i starten av 1920 årene gjenspeilte seg i en økning i antall tvangsauksjoner, fra 742 i 1920 til 4462 i 1929. Like iøynefallende var en bankkrise. Flere og flere banker gikk over ende eller ble satt under administrasjon i denne perioden. Likevel var det den store arbeidsledigheten som ble det mest slående uttrykket for mellomkrigstidens økonomiske krise. For selv om den norske befolkningen økte (se figur 8), så man at antall arbeidsledige hadde en sterk økning fra høsten 1920 som fortsatte gjennom hele 1921 før arbeidsledighetstallene sluttet å stige i de siste månedene av 1922. (Tvedt, 2020).
+
+Ser vi på figuren for årlig endring i sysselsatte i Norge (figur 9), ser man et tydelig bilde på når arbeidsledigheten gikk opp. Slik som forklart tidligere hadde man en brå økning i starten av tiåret, som fortsatte gjennom 1921 og ikke sluttet å stige før slutten av 1922.
+
+Mange hadde investert for mye, og de fikk problemer med å selge varene. Dette førte til at eksporten sank, og store deler av handelsflåten ble lagt i opplag. Den næringen som særlig la merke til krisen, var landbruket. Mange bruk ble solgt på tvangsauksjon og utviklingen skapte arbeidsløshet opp mot 24 prosent i årene som kom. Dommene fra 1920 sto fast og en radikalisert arbeiderbevegelse motsatte seg lønnsnedslag. Harde arbeidskamper ble resultatet. I 1921 erklærte LO storstreik mot lønnsnedslag som følge av prisfallet. I 1923-1924 var det nye streiker, og både i 1926 og 1927 gikk et stort antall arbeidsdager tapt på grunn av arbeidskonflikter. (Tvedt, 2022).
+
+#### Kort oppsummert
+
+1920-tallet var altså preget av stor ustabilitet både politisk og økonomisk. For selv om Norge opplevde en økonomisk vekst var det ingen god periode for landet. Det var høy arbeidsledighet, samtidig som kjøpekraften til befolkningen generelt økte. Norge kjørte også en deflasjonspolitikk, ved å sterke kronen. Vi kan sammenlagt se på 1920-tallet som en økonomisk ustabil periode, til tross for økningen i landets BNP.
+
+## Litteraturliste
+
+Tvedt, K. A. (2022, 22. august). *Norges historie fra 1905 til 1939.* SNL. https://snl.no/Norges_historie_fra_1905_til_1939
+
+Eitrheim, G. et al. (2007). *Historical Monetary Statistics for Norway - some cross checks of the new data* (s. 407-411). Norges Bank Occational Papers No. 38 (Ch. 7 in Eitrheim et al. \[2007\]). https://www.norges-bank.no/globalassets/upload/hms/data/shortterm_ir.xlsx
+
+Statistisk sentralbyrå. (2013, 27. desember). *10260: Sysselsatte personer, etter statistikkvariabel, næring og år.* SSB. https://data.ssb.no/api/v0/no/table/10260/
+
+Statistisk sentralbyrå. (2022, 2. februar). *05810: Aldersgrupper og kjønnsfordeling i hele befolkningen 1845 - 2022.* SSB. https://data.ssb.no/api/v0/no/table/05810/
+
+Statistisk sentralbyrå. (2005, 9. mai). *Økonomisk utvikling og verdiskaping.* SSB. https://www.ssb.no/kultur-og-fritid/artikler-og-publikasjoner/okonomisk-utvikling-og-verdiskaping?fbclid=IwAR0rkPVPXML_jwkVyvu8qzV1yijcnCZ00xSkMYGNwvNqywwymka9OJpiwYA
+
+Thomassen, E. (2020, 27. september). *Paripolitikk*. SNL. https://snl.no/paripolitikk
+
+\
